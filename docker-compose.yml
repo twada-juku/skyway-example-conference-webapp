@@ -1,0 +1,89 @@
+# from https://docs.docker.jp/compose/django.html
+version: '3'
+
+services:
+  # ローカルの開発環境
+  dev_db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${DEV_POSTGRES_PASSWORD}
+      - POSTGRES_DB=flask2_seed_development
+    volumes:
+      - dev_db_data:/var/lib/postgresql/data
+  dev_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - .:/stacksPy
+    ports:
+      - "5050:5000"
+    depends_on:
+      - dev_db
+    environment:
+      - LOCAL=
+      # - INSTANCE_CONNECTION_NAME=sys0098096-67935-dxdriver41:asia-northeast1:stacks-n-hidaka-prod-db
+      # - DB_USER=postgres
+      # - DB_PASS=${DEV_POSTGRES_PASSWORD}
+      # - DB_NAME=flask2_seed_development
+      - DATABASE_URL=postgresql+pg8000://postgres:${DEV_POSTGRES_PASSWORD}@dev_db/flask2_seed_development
+
+  # ローカルのテスト環境
+  test_db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${TEST_POSTGRES_PASSWORD}
+      - POSTGRES_DB=flask2_seed_development
+    volumes:
+      - test_db_data:/var/lib/postgresql/data
+  test_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - .:/stacksPy
+    ports:
+      - "5051:5000"
+    depends_on:
+      - test_db
+    environment:
+      - LOCAL=
+      # - INSTANCE_CONNECTION_NAME=sys0098096-67935-dxdriver41:asia-northeast1:stacks-n-hidaka-prod-db
+      # - DB_USER=postgres
+      # - DB_PASS=${TEST_POSTGRES_PASSWORD}
+      # - DB_NAME=flask2_seed_development
+      - DATABASE_URL=postgresql+pg8000://postgres:${TEST_POSTGRES_PASSWORD}@test_db/flask2_seed_development
+
+  # # DB マイグレーション用環境
+  sql_proxy:
+    image: gcr.io/cloudsql-docker/gce-proxy:latest
+    volumes:
+      - ./sa:/config
+    ports:
+      - "3306:3306"
+    restart: always
+    command: /cloud_sql_proxy -instances=sys0098096-67935-dxdriver41:asia-northeast1:stacks-n-hidaka-prod-db=tcp:0.0.0.0:3306 -credential_file=/config/sys0098096-67935-dxdriver41-061297e807f9.json
+  migration_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/stacksPy
+    ports:
+      - "5052:5000"
+    environment:
+      - LOCAL=BUT_CONNECT_TO_CloudSQL_by_sql_proxy
+      # - INSTANCE_CONNECTION_NAME=sys0098096-67935-dxdriver41:asia-northeast1:stacks-n-hidaka-prod-db
+      # - DB_USER=postgres
+      # - DB_PASS=${TEST_POSTGRES_PASSWORD}
+      # - DB_NAME=flask2_seed_development
+      - DATABASE_URL=postgresql+pg8000://postgres:${MIGRATION_POSTGRES_PASSWORD}@sql_proxy:3306/flask2_seed_development
+
+volumes:
+  # DB の格納先
+  dev_db_data:
+  test_db_data:
